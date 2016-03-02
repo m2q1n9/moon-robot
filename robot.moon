@@ -13,11 +13,6 @@ trace_req = {}
 trace_send = {}
 
 class Robot
-  @login_req =
-    username: nil
-    password: "moon"
-    gatename: "moon_1001"
-
   new: =>
     @wait = true
     @session = 0
@@ -64,10 +59,10 @@ class Robot
     if name == "EnterScene" then @EnterScene req else @send name, req
 
   recv_data: =>
-    socket.read @fd, moon.unpack socket.read @fd, 2
+    socket.read @fd, moon.net_unpack socket.read @fd, 2
 
   send_data: (msg) =>
-    socket.write @fd, moon.pack msg
+    socket.write @fd, moon.net_pack msg
 
   send: (name, req, rsp_handler) =>
     moon.trace_call! if trace_send[name]
@@ -80,20 +75,20 @@ class Robot
 
   open_connect: (host, port, service) =>
     @close_connect! if @fd
+    moon.debug "connect #{service} #{host}:#{port}"
     @fd = socket.open host, port
     moon.assert @fd, "connect #{service} failed"
 
   close_connect: =>
     socket.close @fd
 
-  Login: (host = config.login.host, port = config.login.port) =>
-    moon.debug "Login #{host} #{port}"
+  Login: (host = config.login.host, port = config.login.port, req) =>
     @open_connect host, port, "login"
-    @send "Login", @@login_req, (rsp) ->
+    @send "Login", req, (rsp) ->
       moon.assert rsp.result == 0, "Login failed"
       moon.debug "Login ok, start Handshake"
-      {uid:@uid, token:@token, :host, :port} = rsp
-      @open_connect host, port, "gate"
+      {gid:@gid, uid:@uid, token:@token} = rsp
+      @open_connect host, port + @gid, "gate"
       @Handshake!
 
   Handshake: =>
@@ -114,13 +109,15 @@ class Robot
 
 
 skynet.start () ->
-  skynet.uniqueservice "debug_console", 8998
-
   sproto.register "proto/proto.sproto", 1
   sp = sproto.load 1
 
   rpc = sp\host!
   pack_req = rpc\attach sp
+
+  login_req =
+    username: skynet.getenv "user_name"
+    password: "moon"
 
   login_host = skynet.getenv "login_host"
   login_port = skynet.getenv "login_port"
@@ -129,7 +126,7 @@ skynet.start () ->
   for i = 1, robot_num
     moon.debug "-> start robot #{i}"
     robot = Robot!
-    robot\Login login_host, login_port
+    robot\Login login_host, login_port, login_req
 
     skynet.fork () -> while true do robot\dispatch_msg!
     skynet.fork () -> while true do robot\update_game!
