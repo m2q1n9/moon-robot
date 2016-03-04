@@ -1,13 +1,10 @@
 -- robot.moon, created by mzq. -*- mode: moon -*-
 
-moon = require "moon"
-config = require "config"
 skynet = require "skynet"
 socket = require "socket"
-sproto = require "sprotoloader"
-
-rpc = nil
-pack_req = nil
+config = require "config"
+moon = require "moon"
+sp = require "sp"
 
 trace_req = {}
 trace_send = {}
@@ -35,7 +32,7 @@ class Robot
       @send_data pack_rsp rsp if pack_rsp
 
   dispatch_msg: =>
-    @dispatch_rpc rpc\dispatch @recv_data!
+    @dispatch_rpc sp.unpack @recv_data!
 
   start_game: =>
     file = io.open "data/robot_data"
@@ -71,7 +68,7 @@ class Robot
       @session += 1
       session = @session
       @response[session] = rsp_handler
-    @send_data pack_req name, req, session
+    @send_data sp.pack name, req, session
 
   open_connect: (host, port, service) =>
     @close_connect! if @fd
@@ -109,11 +106,8 @@ class Robot
 
 
 skynet.start () ->
-  sproto.register "proto/proto.sproto", 1
-  sp = sproto.load 1
-
-  rpc = sp\host!
-  pack_req = rpc\attach sp
+  sp.save "proto/sproto.spb", true
+  sp.load!
 
   login_req =
     username: skynet.getenv "user_name"
