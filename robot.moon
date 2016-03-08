@@ -4,6 +4,7 @@ skynet = require "skynet"
 socket = require "socket"
 config = require "config"
 moon = require "moon"
+net = require "net"
 sp = require "sp"
 
 trace_req = {}
@@ -26,7 +27,7 @@ class Robot
       session, rsp = ...
       @response[session] rsp
     else
-      moon.assert type == "REQUEST"
+      log.assert type == "REQUEST"
       name, req, pack_rsp = ...
       rsp = @dispatch_req name, req
       @send_data pack_rsp rsp if pack_rsp
@@ -56,10 +57,10 @@ class Robot
     if name == "EnterScene" then @EnterScene req else @send name, req
 
   recv_data: =>
-    socket.read @fd, moon.net_unpack socket.read @fd, 2
+    socket.read @fd, net.unpack socket.read @fd, 2
 
   send_data: (msg) =>
-    socket.write @fd, moon.net_pack msg
+    socket.write @fd, net.pack msg
 
   send: (name, req, rsp_handler) =>
     moon.trace_call! if trace_send[name]
@@ -72,9 +73,9 @@ class Robot
 
   open_connect: (host, port, service) =>
     @close_connect! if @fd
-    moon.debug "connect #{service} #{host}:#{port}"
+    log.debug "connect #{service} #{host}:#{port}"
     @fd = socket.open host, port
-    moon.assert @fd, "connect #{service} failed"
+    log.assert @fd, "connect #{service} failed"
 
   close_connect: =>
     socket.close @fd
@@ -82,25 +83,25 @@ class Robot
   Login: (host = config.login.host, port = config.login.port, req) =>
     @open_connect host, port, "login"
     @send "Login", req, (rsp) ->
-      moon.assert rsp.result == 0, "Login failed"
-      moon.debug "Login ok, start Handshake"
+      log.assert rsp.result == 0, "Login failed"
+      log.debug "Login ok, start Handshake"
       {gid:@gid, uid:@uid, token:@token} = rsp
       @open_connect host, port + @gid, "gate"
       @Handshake!
 
   Handshake: =>
     skynet.sleep 10
-    moon.debug "Handshake #{@uid} #{@token}"
+    log.debug "Handshake #{@uid} #{@token}"
     @send "Handshake", {uid:@uid, token:@token}, (rsp) ->
-      moon.assert rsp.result == 0, "Handshake failed"
-      moon.debug "Handshake ok, start game"
+      log.assert rsp.result == 0, "Handshake failed"
+      log.debug "Handshake ok, start game"
       @start_game!
 
   EnterScene: (req) =>
     return if @scenename == req.scenename
     @wait = true
     @send "EnterScene", req, (rsp) ->
-      moon.assert rsp.result == 0, "EnterScene %s failed", req.scenename
+      log.assert rsp.result == 0, "EnterScene %s failed", req.scenename
       @scenename = req.scenename
       @wait = nil
 
@@ -118,7 +119,7 @@ skynet.start () ->
   robot_num = skynet.getenv "robot_num"
 
   for i = 1, robot_num
-    moon.debug "-> start robot #{i}"
+    log.debug "-> start robot #{i}"
     robot = Robot!
     robot\Login login_host, login_port, login_req
 
